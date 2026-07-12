@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Bottleneck Agent — AI Supply-Chain Stock Research</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.24.7/babel.min.js"></script>
+<style>
+  :root {
+    --bg:#0b0e14; --panel:#131722; --panel2:#1a2030; --border:#232b3d;
+    --text:#dbe2f0; --dim:#7d8aa5; --accent:#4f8cff; --green:#3ecf8e;
+    --amber:#f5b950; --red:#ef6a6a; --mono:'SF Mono',Menlo,Consolas,monospace;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text);
+         font:14px/1.5 -apple-system,'Segoe UI',Roboto,sans-serif; }
+  #root { max-width:1200px; margin:0 auto; padding:20px; }
+  h1 { font-size:20px; margin:0; }
+  .sub { color:var(--dim); font-size:12.5px; margin-top:2px; }
+  .topbar { display:flex; align-items:center; justify-content:space-between;
+            gap:16px; flex-wrap:wrap; margin-bottom:16px; }
+  button.primary { background:var(--accent); color:#fff; border:none; border-radius:8px;
+           padding:10px 18px; font-size:14px; font-weight:600; cursor:pointer; }
+  button.primary:disabled { opacity:.5; cursor:default; }
+  select { background:var(--panel2); color:var(--text); border:1px solid var(--border);
+           border-radius:8px; padding:8px 10px; }
+  .tabs { display:flex; gap:6px; margin:14px 0; flex-wrap:wrap; }
+  .tab { padding:8px 14px; border-radius:8px; cursor:pointer; color:var(--dim);
+         border:1px solid transparent; font-weight:600; font-size:13px; }
+  .tab.active { color:var(--text); background:var(--panel); border-color:var(--border); }
+  .card { background:var(--panel); border:1px solid var(--border); border-radius:12px;
+          padding:16px; margin-bottom:12px; }
+  .progress-outer { height:8px; background:var(--panel2); border-radius:4px; overflow:hidden; flex:1; min-width:160px;}
+  .progress-inner { height:100%; background:var(--accent); transition:width .5s; }
+  .stage-head { display:flex; align-items:center; gap:10px; cursor:pointer; }
+  .stage-num { width:26px; height:26px; border-radius:50%; background:var(--panel2);
+               display:flex; align-items:center; justify-content:center;
+               font-family:var(--mono); font-size:12px; color:var(--accent); flex:none;}
+  .stage-title { font-weight:700; }
+  .stage-sum { color:var(--dim); font-size:12.5px; }
+  .event { padding:6px 10px; margin:4px 0 4px 36px; border-left:2px solid var(--border);
+           font-size:12.5px; color:var(--dim); }
+  .event .kind { font-family:var(--mono); font-size:10.5px; padding:1px 6px;
+                 border-radius:4px; margin-right:8px; }
+  .k-theme,.k-pick { background:#153054; color:#7db4ff; }
+  .k-segment,.k-crawl,.k-data,.k-score,.k-thesis { background:#15302a; color:#5fd4a5; }
+  .k-warn,.k-reject,.k-skip { background:#3a2320; color:#ff9d8a; }
+  .factor-row { display:flex; align-items:center; gap:8px; margin:3px 0; }
+  .factor-name { width:110px; font-size:12px; color:var(--dim); flex:none; }
+  .bar-outer { flex:1; height:8px; background:var(--panel2); border-radius:4px; overflow:hidden;}
+  .bar-inner { height:100%; border-radius:4px; }
+  .factor-val { width:38px; text-align:right; font-family:var(--mono); font-size:12px; }
+  .pick-head { display:flex; justify-content:space-between; align-items:baseline; gap:10px; flex-wrap:wrap;}
+  .ticker { font-family:var(--mono); font-size:18px; font-weight:700; color:var(--accent); }
+  .badge { font-size:11px; padding:2px 8px; border-radius:10px; background:var(--panel2);
+           color:var(--dim); margin-left:8px; }
+  .composite { font-family:var(--mono); font-size:16px; color:var(--green); font-weight:700;}
+  .thesis { background:var(--panel2); border-radius:8px; padding:12px 14px;
+            margin-top:10px; font-size:13px; }
+  .thesis p { margin:6px 0; }
+  details summary { cursor:pointer; color:var(--dim); font-size:12.5px; margin-top:8px;}
+  .ev-list { margin:6px 0 0 0; padding-left:18px; color:var(--dim); font-size:12.5px; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th,td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--border); }
+  th { color:var(--dim); font-size:11.5px; text-transform:uppercase; letter-spacing:.05em;}
+  td.mono { font-family:var(--mono); }
+  .pos { color:var(--green); } .neg { color:var(--red); }
+  .tk { font-family:var(--mono); background:var(--panel2); border-radius:5px;
+        padding:1px 7px; margin-right:6px; font-size:12px; display:inline-block; margin-top:4px;}
+  /* supply-chain map */
+  .map-grid { display:grid; grid-template-columns:1fr 1fr; gap:18px; align-items:start; }
+  @media (max-width: 900px) { .map-grid { grid-template-columns:1fr; } }
+  .map-col-head { text-align:center; padding:12px; background:var(--panel);
+                  border:1px solid var(--border); border-radius:12px; margin-bottom:4px; }
+  .map-stage { text-align:center; margin-top:2px; }
+  .stage-label { display:inline-block; font-size:10.5px; letter-spacing:.12em;
+                 text-transform:uppercase; color:var(--dim); background:var(--panel2);
+                 border-radius:10px; padding:2px 12px; margin:6px 0; }
+  .map-arrow { text-align:center; color:var(--dim); font-size:14px; line-height:1;
+               margin:2px 0; }
+  .node { background:var(--panel); border:1px solid var(--border); border-radius:10px;
+          padding:10px 12px; margin:6px auto; max-width:420px; cursor:pointer;
+          text-align:left; transition:border-color .15s, transform .1s; position:relative; }
+  .node:hover { border-color:var(--accent); transform:translateY(-1px); }
+  .node.selected { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent); }
+  .node.bottleneck { border-color:#7a4a1e; background:linear-gradient(180deg,#20180f,var(--panel)); }
+  .node.bottleneck:hover, .node.bottleneck.selected { border-color:var(--amber); box-shadow:0 0 0 1px var(--amber); }
+  .node.context { opacity:.62; }
+  .node-name { font-weight:700; font-size:13px; }
+  .node-meta { font-size:11px; color:var(--dim); margin-top:2px; }
+  .bn-badge { font-size:10px; font-weight:700; color:#1a1206; background:var(--amber);
+              border-radius:8px; padding:1px 7px; margin-left:6px; vertical-align:1px;}
+  .ctx-badge { font-size:10px; color:var(--dim); background:var(--panel2);
+               border-radius:8px; padding:1px 7px; margin-left:6px; vertical-align:1px;}
+  .detail-wrap { position:fixed; right:20px; bottom:20px; width:380px; max-width:92vw;
+                 max-height:72vh; overflow:auto; z-index:10;
+                 box-shadow:0 10px 40px rgba(0,0,0,.55); border-radius:12px; }
+  .detail-panel { background:var(--panel); border:1px solid var(--accent);
+                  border-radius:12px; padding:16px; }
+  .player-row { display:flex; gap:10px; padding:7px 0; border-bottom:1px solid var(--border);
+                align-items:baseline; }
+  .player-row:last-child { border-bottom:none; }
+  .legend { display:flex; gap:16px; justify-content:center; margin:8px 0 14px;
+            color:var(--dim); font-size:12px; flex-wrap:wrap; }
+  .legend .swatch { display:inline-block; width:11px; height:11px; border-radius:3px;
+                    margin-right:5px; vertical-align:-1px; }
+  .disclaimer { color:var(--dim); font-size:11.5px; text-align:center; margin:20px 0; }
+  a { color:var(--accent); text-decoration:none; }
+  .empty { color:var(--dim); text-align:center; padding:60px 0; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel" data-presets="react">
+const { useState, useEffect, useRef, useCallback } = React;
+
+const FACTORS = [
+  ["demand", "Demand", "#4f8cff"],
+  ["supply", "Supply constraint", "#3ecf8e"],
+  ["attention", "Low attention", "#b57bff"],
+  ["value_capture", "Value capture", "#f5b950"],
+  ["catalyst", "Catalyst", "#ff8a5f"],
+];
+
+const fmtCap = c => c ? (c >= 1e9 ? `$${(c/1e9).toFixed(1)}B` : `$${(c/1e6).toFixed(0)}M`) : "—";
+const fmtPct = v => v == null ? "—" : `${(v*100).toFixed(0)}%`;
+const Ret = ({v}) => v == null ? <span>—</span> :
+  <span className={v >= 0 ? "pos" : "neg"}>{(v*100).toFixed(0)}%</span>;
+
+// minimal markdown: **bold**, _italic_, line breaks
+function md(text) {
+  const esc = s => s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  return esc(text || "")
+    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    .replace(/_(.+?)_/g, "<em>$1</em>")
+    .split(/\n{2,}/).map(p => `<p>${p.replace(/\n/g, "<br/>")}</p>`).join("");
+}
+
+function FactorBars({ factors }) {
+  return <div>{FACTORS.map(([k, label, color]) => {
+    const f = factors[k];
+    return <div className="factor-row" key={k}>
+      <div className="factor-name">{label}</div>
+      <div className="bar-outer"><div className="bar-inner"
+        style={{width: `${f.score*100}%`, background: color}} /></div>
+      <div className="factor-val">{f.score.toFixed(2)}</div>
+    </div>;
+  })}</div>;
+}
+
+function Evidence({ factors }) {
+  return <details><summary>Show factor evidence</summary>
+    {FACTORS.map(([k, label]) =>
+      <div key={k}>
+        <div style={{fontSize:12, fontWeight:700, marginTop:8}}>{label}</div>
+        <ul className="ev-list">{factors[k].evidence.map((e,i) => <li key={i}>{e}</li>)}</ul>
+      </div>)}
+  </details>;
+}
+
+function PickCard({ p, rank }) {
+  const m = p.metrics;
+  return <div className="card">
+    <div className="pick-head">
+      <div>
+        <span style={{color:"var(--dim)",fontFamily:"var(--mono)"}}>#{rank} </span>
+        <span className="ticker">{p.ticker}</span>
+        <span style={{marginLeft:8}}>{p.name}</span>
+        <span className="badge">{p.segment_name}</span>
+        <span className="badge">{p.theme_name}</span>
+      </div>
+      <div className="composite">{p.composite.toFixed(3)}</div>
+    </div>
+    <div className="sub" style={{margin:"6px 0 10px"}}>{p.why_critical}</div>
+    <div style={{display:"flex", gap:24, flexWrap:"wrap"}}>
+      <div style={{flex:"1 1 320px"}}><FactorBars factors={p.factors} /></div>
+      <div style={{flex:"1 1 260px", fontSize:12.5, color:"var(--dim)"}}>
+        <div>Price <b style={{color:"var(--text)"}}>${(m.price||0).toFixed(2)}</b>
+          &nbsp; Cap <b style={{color:"var(--text)"}}>{fmtCap(m.market_cap)}</b></div>
+        <div>Momentum: 1M <Ret v={m.ret_1m}/> · 3M <Ret v={m.ret_3m}/> · 6M <Ret v={m.ret_6m}/></div>
+        <div>Gross margin {fmtPct(m.gross_margin)} · Rev growth {fmtPct(m.revenue_growth)}</div>
+        <div>Analysts: {m.analyst_count ?? "—"} · P/S {m.price_to_sales ? m.price_to_sales.toFixed(1) : "—"}</div>
+        {m.next_earnings && <div>Next earnings: {String(m.next_earnings).slice(0,10)}</div>}
+      </div>
+    </div>
+    <Evidence factors={p.factors} />
+    {p.headlines && p.headlines.length > 0 &&
+      <details><summary>Recent headlines ({p.headlines.length})</summary>
+        <ul className="ev-list">{p.headlines.map((h,i) =>
+          <li key={i}>{h.url ? <a href={h.url} target="_blank" rel="noreferrer">{h.title}</a> : h.title}</li>)}
+        </ul></details>}
+    <div className="thesis" dangerouslySetInnerHTML={{__html: md(p.thesis)}} />
+    <div className="sub" style={{marginTop:6}}>Thesis engine: {p.thesis_engine}</div>
+  </div>;
+}
+
+function StageView({ s, idx }) {
+  const [open, setOpen] = useState(idx <= 1);
+  return <div className="card">
+    <div className="stage-head" onClick={() => setOpen(!open)}>
+      <div className="stage-num">{idx+1}</div>
+      <div style={{flex:1}}>
+        <div className="stage-title">{s.title}
+          <span style={{color:"var(--dim)", fontWeight:400, marginLeft:8, fontSize:12}}>
+            {open ? "▾" : "▸"}</span></div>
+        <div className="stage-sum">{s.summary || "…"}</div>
+      </div>
+    </div>
+    {open && <div style={{marginTop:8}}>
+      <div className="event" style={{borderColor:"var(--accent)", color:"var(--text)"}}>{s.description}</div>
+      {s.events.map((e,i) =>
+        <div className="event" key={i}>
+          <span className={`kind k-${e.kind}`}>{e.kind}</span>{e.text}
+        </div>)}
+    </div>}
+  </div>;
+}
+
+function CandidateTable({ candidates, picks }) {
+  const pickSet = new Set(picks.map(p => p.ticker));
+  return <div className="card" style={{overflowX:"auto"}}>
+    <table><thead><tr>
+      <th>#</th><th>Ticker</th><th>Segment</th><th>Composite</th>
+      <th>Sup</th><th>Att</th><th>Dem</th><th>Val</th><th>Cat</th>
+      <th>Cap</th><th>3M</th><th>Status</th>
+    </tr></thead><tbody>
+      {candidates.map((c,i) => <tr key={c.ticker}
+          style={pickSet.has(c.ticker) ? {background:"rgba(62,207,142,.06)"} : {}}>
+        <td className="mono">{i+1}</td>
+        <td className="mono" style={{color:"var(--accent)",fontWeight:700}}>{c.ticker}</td>
+        <td>{c.segment_name}</td>
+        <td className="mono">{c.composite.toFixed(3)}</td>
+        {["supply","attention","demand","value_capture","catalyst"].map(k =>
+          <td className="mono" key={k}>{c.factors[k].score.toFixed(2)}</td>)}
+        <td className="mono">{fmtCap(c.metrics.market_cap)}</td>
+        <td className="mono"><Ret v={c.metrics.ret_3m}/></td>
+        <td>{pickSet.has(c.ticker) ? <span className="pos">PICK</span>
+             : <span style={{color:"var(--dim)"}}>filtered</span>}</td>
+      </tr>)}
+    </tbody></table>
+  </div>;
+}
+
+function NodeDetail({ seg, theme, thr, onClose }) {
+  const isBn = seg.supply_constraint_prior >= thr;
+  const scoped = seg.in_scope !== false;
+  return <div className="detail-panel">
+    <div style={{display:"flex", justifyContent:"space-between", alignItems:"start", gap:8}}>
+      <div>
+        <div style={{fontWeight:700, fontSize:15}}>{seg.name}
+          {isBn && <span className="bn-badge">⛓ BOTTLENECK</span>}
+          {!scoped && <span className="ctx-badge">context only</span>}
+        </div>
+        <div className="sub">{theme.name} · {seg.stage}</div>
+      </div>
+      <span style={{cursor:"pointer", color:"var(--dim)", fontSize:18, lineHeight:1}}
+            onClick={onClose}>✕</span>
+    </div>
+    <div style={{fontSize:12.5, margin:"10px 0", color:"var(--text)"}}>{seg.why_critical}</div>
+    <div className="sub" style={{marginBottom:10}}>
+      Supply-constraint prior <b style={{color: isBn ? "var(--amber)" : "var(--text)"}}>
+        {seg.supply_constraint_prior.toFixed(2)}</b>
+      &nbsp;·&nbsp; Criticality <b style={{color:"var(--text)"}}>{seg.criticality.toFixed(2)}</b>
+    </div>
+    <div style={{fontSize:11.5, color:"var(--dim)", textTransform:"uppercase",
+                 letterSpacing:".08em", marginBottom:2}}>Top players</div>
+    {(seg.players || []).map(([t, n, note], i) =>
+      <div className="player-row" key={i}>
+        <span className="tk" style={t === "—" ? {color:"var(--dim)"} : {color:"var(--accent)", fontWeight:700}}>
+          {t === "—" ? "unlisted" : t}</span>
+        <span style={{flex:1}}>{n}</span>
+        {note && <span className="sub">{note}</span>}
+      </div>)}
+    {scoped && seg.tickers.length > 0 &&
+      <div className="sub" style={{marginTop:10}}>
+        Screened by the agent: {seg.tickers.filter(t => !t.includes(".")).join(", ")}</div>}
+    {!scoped && <div className="sub" style={{marginTop:10}}>
+      Not screened — too large/crowded for a bottleneck trade (no attention gap).</div>}
+  </div>;
+}
+
+function KnowledgeMap({ kb }) {
+  const [sel, setSel] = useState(null); // {seg, theme}
+  if (!kb) return <div className="empty">Loading knowledge base…</div>;
+  const thr = kb.bottleneck_threshold ?? 0.75;
+
+  const stagesOf = th => {
+    const order = [], byStage = {};
+    th.segments.forEach(seg => {
+      if (!byStage[seg.stage]) { byStage[seg.stage] = []; order.push(seg.stage); }
+      byStage[seg.stage].push(seg);
+    });
+    return order.map(s => [s, byStage[s]]);
+  };
+
+  return <div>
+    <div className="legend">
+      <span><span className="swatch" style={{background:"var(--amber)"}}/>bottleneck node (supply prior ≥ {thr})</span>
+      <span><span className="swatch" style={{background:"var(--panel2)", border:"1px solid var(--border)"}}/>screened segment</span>
+      <span><span className="swatch" style={{background:"var(--panel2)", opacity:.5}}/>context (too crowded to screen)</span>
+      <span>click a node for top players</span>
+    </div>
+    <div className="map-grid">
+      {kb.themes.map(th => <div key={th.id}>
+        <div className="map-col-head">
+          <div style={{fontWeight:700, fontSize:15}}>{th.name}</div>
+          <div className="sub">{th.megatrend}</div>
+        </div>
+        {stagesOf(th).map(([stage, segs], si) => <div key={stage}>
+          <div className="map-arrow">▼</div>
+          <div className="map-stage"><span className="stage-label">{stage}</span></div>
+          {segs.map(seg => {
+            const isBn = seg.supply_constraint_prior >= thr;
+            const scoped = seg.in_scope !== false;
+            const isSel = sel && sel.seg.id === seg.id;
+            return <div key={seg.id}
+              className={`node ${isBn?"bottleneck":""} ${scoped?"":"context"} ${isSel?"selected":""}`}
+              onClick={() => setSel(isSel ? null : {seg, theme: th})}>
+              <div className="node-name">{seg.name}
+                {isBn && <span className="bn-badge">⛓</span>}
+                {!scoped && <span className="ctx-badge">ctx</span>}
+              </div>
+              <div className="node-meta">
+                supply {seg.supply_constraint_prior.toFixed(2)} · crit {seg.criticality.toFixed(2)} ·&nbsp;
+                {(seg.players || []).slice(0,4).map(p => p[0]).filter(t => t !== "—").join(" ") || "unlisted players"}
+              </div>
+            </div>;
+          })}
+        </div>)}
+      </div>)}
+    </div>
+    {sel && <div className="detail-wrap">
+      <NodeDetail seg={sel.seg} theme={sel.theme} thr={thr} onClose={() => setSel(null)} />
+    </div>}
+  </div>;
+}
+
+function App() {
+  const [runs, setRuns] = useState([]);
+  const [runId, setRunId] = useState(null);
+  const [run, setRun] = useState(null);
+  const [kb, setKb] = useState(null);
+  const [tab, setTab] = useState("picks");
+  const pollRef = useRef(null);
+
+  const refreshRuns = useCallback(async () => {
+    const r = await fetch("/api/runs").then(r => r.json());
+    setRuns(r);
+    return r;
+  }, []);
+
+  useEffect(() => {
+    refreshRuns().then(r => { if (r.length) setRunId(r[0].id); });
+    fetch("/api/knowledge").then(r => r.json()).then(setKb);
+  }, []);
+
+  useEffect(() => {
+    if (!runId) return;
+    const load = async () => {
+      const d = await fetch(`/api/runs/${runId}`).then(r => r.json());
+      setRun(d);
+      if (d.status !== "running" && pollRef.current) {
+        clearInterval(pollRef.current); pollRef.current = null; refreshRuns();
+      }
+    };
+    load();
+    pollRef.current = setInterval(load, 2500);
+    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+  }, [runId]);
+
+  const startRun = async () => {
+    const d = await fetch("/api/runs", {method:"POST"}).then(r => r.json());
+    await refreshRuns();
+    setRunId(d.run_id);
+    setTab("pipeline");
+  };
+
+  const running = run && run.status === "running";
+  const result = run && run.result;
+  const prog = run && run.progress;
+
+  return <div>
+    <div className="topbar">
+      <div>
+        <h1>⛓ Bottleneck Agent</h1>
+        <div className="sub">Serenity-style five-factor chokepoint screen · AI infrastructure & embodied AI · US-listed
+          {result && result.data_mode && result.data_mode !== "live" &&
+            <span className="badge" style={{color:"var(--amber)"}}>⚠ {result.data_mode} data</span>}
+          {result && result.data_mode === "live" &&
+            <span className="badge" style={{color:"var(--green)"}}>live data</span>}
+        </div>
+      </div>
+      <div style={{display:"flex", gap:10, alignItems:"center", flex:"1 1 320px", justifyContent:"flex-end"}}>
+        {running && prog && <>
+          <div className="progress-outer"><div className="progress-inner" style={{width:`${prog.pct}%`}}/></div>
+          <span className="sub">{prog.msg}</span></>}
+        <select value={runId || ""} onChange={e => setRunId(e.target.value)}>
+          {runs.map(r => <option key={r.id} value={r.id}>
+            {r.created.slice(0,16).replace("T"," ")} — {r.status}</option>)}
+        </select>
+        <button className="primary" onClick={startRun} disabled={running}>
+          {running ? "Researching…" : "▶ Run research"}</button>
+      </div>
+    </div>
+
+    <div className="tabs">
+      {[["picks","🏆 Picks"],["pipeline","🧠 Reasoning pipeline"],
+        ["candidates","📊 All candidates"],["map","🗺 Supply-chain map"]].map(([k,l]) =>
+        <div key={k} className={`tab ${tab===k?"active":""}`} onClick={()=>setTab(k)}>{l}</div>)}
+    </div>
+
+    {!run && <div className="empty">No runs yet. Hit <b>Run research</b> to launch the agent —
+      it will crawl live news, pull market data, score every candidate on the five
+      bottleneck factors, and show its full reasoning here.</div>}
+
+    {run && run.status === "error" && <div className="card" style={{color:"var(--red)"}}>
+      Run failed: {result && result.error}</div>}
+
+    {tab === "map" && <KnowledgeMap kb={kb} />}
+
+    {result && result.stages && tab === "pipeline" &&
+      result.stages.map((s,i) => <StageView s={s} idx={i} key={s.name} />)}
+
+    {result && result.picks && tab === "picks" && (result.picks.length
+      ? result.picks.map((p,i) => <PickCard p={p} rank={i+1} key={p.ticker} />)
+      : <div className="empty">{running ? "Agent is still researching…" : "No picks passed the conviction gates this run."}</div>)}
+
+    {result && result.candidates && tab === "candidates" &&
+      <CandidateTable candidates={result.candidates} picks={result.picks || []} />}
+
+    {running && tab !== "map" && !result &&
+      <div className="empty">Agent running — {prog ? prog.msg : "starting"}…</div>}
+
+    <div className="disclaimer">Automated research tool for idea generation.
+      Not financial advice. Data via free delayed feeds (yfinance, Google News RSS).</div>
+  </div>;
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>

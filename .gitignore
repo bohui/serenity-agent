@@ -1,0 +1,6 @@
+.DS_Store
+__pycache__/
+*.pyc
+backend/runs.db
+node_modules/
+.env
