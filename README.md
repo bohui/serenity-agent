@@ -31,21 +31,68 @@ Selection gates: supply ≥ 0.55 AND attention ≥ 0.35 (crowded or unconstraine
 5. **Rank & select** — conviction gates, rejects logged with reasons
 6. **Write theses** — Claude API if `ANTHROPIC_API_KEY` is set, otherwise template engine
 
-## Run it
+## Run it (Docker — recommended)
+
+The app is containerized and ships with a **PostgreSQL 18.3** service. Run
+history is stored in Postgres and persisted in a named Docker volume
+(`pgdata`), so every research run is saved and survives restarts.
+
+```bash
+cp .env.example .env          # optional: set ANTHROPIC_API_KEY, etc.
+docker compose up --build
+# open http://localhost:8000  →  click "Run research"
+```
+
+The app waits for Postgres to become healthy before serving. History persists
+across `docker compose down` / `up`. To wipe it, remove the volume:
+
+```bash
+docker compose down -v        # deletes the pgdata volume (history gone)
+```
+
+## Run it on Apple Containerization (mocker)
+
+No Docker Desktop required. [`mocker`](https://github.com/us/mocker) is a
+Docker-compatible CLI + Compose built on Apple's Containerization framework
+(macOS 26+, Apple Silicon) — the same `docker-compose.yml` above runs as-is,
+and its named `pgdata` volume persists run history under `~/.mocker/volumes/`.
+
+```bash
+brew tap us/tap && brew install mocker   # or build from source
+
+cp .env.example .env                     # optional
+mocker compose up -d                     # builds the app image + starts postgres:18.3
+# open http://localhost:8000
+
+mocker compose ps                        # status
+mocker compose logs -f app               # tail app logs
+mocker compose down                      # stop (keeps the pgdata volume → history saved)
+```
+
+If your `mocker` build doesn't build from a compose `build:` block, build the
+image first and it'll be reused:
+
+```bash
+mocker build -t bottleneck-agent-app -f backend/Dockerfile .
+```
+
+## Run it (local, without Docker)
+
+Needs a reachable Postgres. Point the app at it with `DATABASE_URL`:
 
 ```bash
 cd backend
 pip install -r requirements.txt
+export DATABASE_URL=postgresql://bottleneck:bottleneck@localhost:5432/bottleneck
 uvicorn app.main:app --port 8000
-# open http://localhost:8000  →  click "Run research"
 ```
 
-Optional:
+Optional (both run modes):
 
 ```bash
-export ANTHROPIC_API_KEY=sk-ant-...   # Claude writes the final theses (hybrid mode)
-export THESIS_MODEL=claude-sonnet-4-5 # thesis model override
-export DEMO_MODE=1                    # force offline sample data
+ANTHROPIC_API_KEY=sk-ant-...    # Claude writes the final theses (hybrid mode)
+THESIS_MODEL=claude-sonnet-4-5  # thesis model override
+DEMO_MODE=1                     # force offline sample data
 ```
 
 If live feeds are unreachable the agent automatically falls back to bundled,
@@ -63,7 +110,7 @@ clearly-labeled sample data (`⚠ demo-fallback` badge in the UI; names tagged `
 - **New chokepoints/tickers** — edit `backend/app/knowledge.py` (themes → segments → tickers, priors, crawler keywords). Everything downstream adapts automatically.
 - **Weights/gates** — `FACTOR_WEIGHTS` in `knowledge.py`, gates in `pipeline.py` stage 5.
 - **Better data** — swap `market.py` for a paid real-time feed; add SEC EDGAR/earnings-call crawling in `crawler.py`.
-- **Scheduling** — call `POST /api/runs` from cron for a daily scan.
+- **Scheduling** — call `POST /api/runs` from cron for a daily scan (history accumulates in Postgres).
 
 ## Structure
 
@@ -75,7 +122,11 @@ backend/
   app/pipeline.py    6-stage pipeline + full reasoning trace
   app/thesis.py      Claude-or-template thesis writer
   app/sampledata.py  labeled offline fallback data
-  app/main.py        FastAPI server + SQLite run store
+  app/db.py          PostgreSQL run store (persistent history)
+  app/main.py        FastAPI server + background run runner
+  Dockerfile         backend image (also serves the frontend)
 frontend/index.html  React UI (no build step): picks, reasoning pipeline,
                      candidate table, supply-chain map
+docker-compose.yml   app + postgres:18.3 with a persistent pgdata volume
+                     (runs on Docker or mocker/Apple Containerization)
 ```
